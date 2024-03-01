@@ -1,0 +1,10 @@
+.flatpak-builder/
+build-dir/
+fonts/*.tt[fc]
+WinBox.metainfo.xml
+*.ico
+*.png
+!icons/*.png
+*~
+*.SAV
+*.BAK

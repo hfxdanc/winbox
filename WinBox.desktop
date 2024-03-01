@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+
+Name=WinBox
+Comment=MikroTik RouterOS administration tool
+Categories=System;Monitor;
+
+Icon=org.flatpak.WinBox
+Exec=winbox.sh
+DBusActivatable=false
+Terminal=false
