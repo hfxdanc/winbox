@@ -11,12 +11,7 @@ finish-args:
   - --env=WINEPREFIX=/var/data
   # Allow access to add desktop icon file
   - --filesystem=~/.local/share/icons/hicolor/
-  # Allow access to normal XDG dirs
-  - --filesystem=xdg-desktop
-  - --filesystem=xdg-documents
-  - --filesystem=xdg-pictures
-  - --filesystem=xdg-music
-  - --filesystem=xdg-videos
+  # Allow access to XDG download dir
   - --filesystem=xdg-download
   - --filesystem=xdg-run/gvfsd
   - --share=ipc
@@ -116,7 +111,7 @@ modules:
             source /app/bin/winbox-fonts.sh
 
             update_progress "+5" "Set Windows Version to win10"; PERCENT=$?
-            WINEDLLOVERRIDES='mscoree,mshtml=d' wine64 REG ADD 'HKEY_CURRENT_USER\Software\Wine' /v 'Version' /d 'win10' /f
+            WINEDLLOVERRIDES='mscoree,mshtml=d' wine64 REG ADD 'HKCU\Software\Wine' /v 'Version' /d 'win10' /f
 
             echo "# Installer finished" ) | zenity --progress --title="Installing Application" --width=480
       - type: script
@@ -186,18 +181,19 @@ modules:
             if [ ${SKIP_SELECT} -eq 0 ]; then
               update_progress "+10"; PERCENT=$?
               _FAMILIES=$(WINEDLLOVERRIDES="mscoree,mshtml=d" \
-                wine64 reg query 'HKEY_CURRENT_USER\Software\Wine\Fonts\External Fonts' \
+                wine64 reg query 'HKCU\Software\Wine\Fonts\External Fonts' \
                 | awk '{
                   sub(/\r$/, "")
                   if (split($0, a, /[[:space:]]*REG_SZ[[:space:]]*/) == 2)
                     print gensub(/\\/, "/", "g", substr(a[2], match(a[2], /:/) + 1))
                 }' | while read -r file; do fc-query --format='%{[]family{%{family}\n}}' "${file}"; done \
-                | awk '{
+                | awk -v parent="${PARENT}" '{
                   families[$1] = 1
                   }
                   END {
                     lines = 0
-                    printf("TRUE\nAuto\n")
+                    if (parent != "winbox-fonts.sh")
+                      printf("TRUE\nAuto\n")
 
                     asorti(families)
                     for (i in families) {
@@ -231,10 +227,10 @@ modules:
                 update_progress "+5"; PERCENT=$?
                 case "${_CHOICE}" in
                 ""|"Auto")
-                  wine64 REG DELETE 'HKEY_CURRENT_USER\Software\Wine\Fonts\Replacements' /v 'Tahoma' /f 
+                  wine64 REG DELETE 'HKCU\Software\Wine\Fonts\Replacements' /v 'Tahoma' /f 
                   ;;
                 *)
-                  wine64 REG ADD 'HKEY_CURRENT_USER\Software\Wine\Fonts\Replacements' /v 'Tahoma' /d "${_CHOICE}" /f 
+                  wine64 REG ADD 'HKCU\Software\Wine\Fonts\Replacements' /v 'Tahoma' /d "${_CHOICE}" /f 
                   ;;
                 esac
               fi

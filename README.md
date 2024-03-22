@@ -10,6 +10,10 @@ After agreement to the [Export Eligibility Requirements and END USER LICENSE](ht
 
 #### Possible issues
 
+##### AppStream data
+
+When the Flatpak was built, the release of latest WinBox executable was included in the "Version" section of the AppStream Desktop files; however, the install may download a newer version.
+
 ##### Fonts
 
 - Wine seems to now *always* obey the font settings from the underlying O/S regarding antialiasing.  If you are using GNOME desktop and the fonts in WinBox appear thin and are not providing proper kerning (text is improperly spaced) check the current settings ...

@@ -10,3 +10,4 @@ build-dir/
 *.swp
 !icons/*.png
 WinBox.metainfo.xml
+WinBox.version
