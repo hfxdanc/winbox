@@ -7,27 +7,22 @@ sdk: org.freedesktop.Sdk
 command: winbox.sh
 
 finish-args:
-  - --allow=multiarch
   - --env=PATH=/app/bin:/usr/bin
-  - --env=WINEDLLPATH=/app/dlls/lib32:/app/dlls/lib
   - --env=WINEPREFIX=/var/data
-  # To access user files
-  - --filesystem=host
+  # Allow access to add desktop icon file
+  - --filesystem=~/.local/share/icons/hicolor/
+  # Allow access to normal XDG dirs
+  - --filesystem=xdg-desktop
+  - --filesystem=xdg-documents
+  - --filesystem=xdg-pictures
+  - --filesystem=xdg-music
+  - --filesystem=xdg-videos
+  - --filesystem=xdg-download
   - --filesystem=xdg-run/gvfsd
   - --share=ipc
   - --share=network
   - --socket=wayland
   - --socket=x11
-
-inherit-extensions:
-  - org.freedesktop.Platform.Compat.i386
-  - org.freedesktop.Platform.ffmpeg_full.i386
-  - org.freedesktop.Platform.ffmpeg-full
-  - org.freedesktop.Platform.GL32
-  - org.freedesktop.Platform.VAAPI.Intel.i386
-  - org.winehq.Wine.DLLs
-  - org.winehq.Wine.gecko
-  - org.winehq.Wine.mono
 
 modules:
   - name: WinBox
@@ -47,10 +42,6 @@ modules:
         rm ${FLATPAK_DEST}/share/wine/fonts/tahoma.ttf \
           ${FLATPAK_DEST}/share/wine/fonts/tahomabd.ttf
       - |
-        find . -name \*.ttf -o -name \*.ttc | while read -r file; do
-          install -Dm644 ${file} -t ${FLATPAK_DEST}/share/wine/fonts/
-        done
-      - |
         for size in 64 128 256 512
         do
           install -d ${FLATPAK_DEST}/share/icons/hicolor/${size}x${size}/apps
@@ -62,7 +53,6 @@ modules:
         dest-filename: winbox-installer.sh
         commands:
           - |
-            #!/bin/sh
             CHOICE=$(zenity --list \
             --hide-header \
             --hide-column=3 \
@@ -76,8 +66,8 @@ modules:
             --column="Select" \
             --column="Text" \
             --column="VAR" \
-            TRUE "I agree with the above terms and conditions" "TRUE" \
-            FALSE "I do not accept the agreement" "FALSE")
+            FALSE "I agree with the above terms and conditions" "TRUE" \
+            TRUE "I do not accept the agreement" "FALSE")
 
             # If dialog is cancelled insure default of FALSE is enforced
             # shellcheck disable=SC2181
@@ -86,14 +76,21 @@ modules:
               exit 1
             fi
 
-            PERCENT=0
-            (echo "# Downloading WinBox64"
+            (PERCENT=5
+            echo "# Downloading WinBox64"
             echo "${PERCENT}"; sleep 1
             mkdir -p "${WINEPREFIX}/drive_c/Program Files/WinBox"
             curl --location \
               --output "${WINEPREFIX}/drive_c/Program Files/WinBox/winbox64.exe" \
               https://mt.lv/winbox64
             PERCENT=30
+
+            echo "# Downloading Export Eligibility Requirements and END USER LICENSE"
+            echo "${PERCENT}"; sleep 1
+            curl --location \
+              --output "${WINEPREFIX}/drive_c/Program Files/WinBox/LICENSE" \
+              https://mikrotik.com/downloadterms.html
+            PERCENT=40
 
             echo "# Downloading Icons"
             echo "${PERCENT}"; sleep 1
@@ -111,33 +108,31 @@ modules:
                 --output ~/.local/share/icons/hicolor/${size}x${size}/apps/"${FLATPAK_ID}".png \
                 /tmp/MT_Symbol_Black.svg
             done
-            PERCENT=40
-
-            echo "# Setting-up wine prefix"
-            echo "${PERCENT}"; sleep 1
-            wineboot
-            PERCENT=70
+            PERCENT=50
 
             echo "# Checking Font(s)"
             echo "${PERCENT}"; sleep 1
             # shellcheck disable=SC3046,SC1091
             source /app/bin/winbox-fonts.sh
 
-            echo "# Set Windows Version to win10"
-            update_progress "=95"; sleep 1
-            wine64 REG ADD 'HKEY_CURRENT_USER\Software\Wine' /v Version /d win10 /f
+            update_progress "+5" "Set Windows Version to win10"; PERCENT=$?
+            WINEDLLOVERRIDES='mscoree,mshtml=d' wine64 REG ADD 'HKEY_CURRENT_USER\Software\Wine' /v 'Version' /d 'win10' /f
 
             echo "# Installer finished" ) | zenity --progress --title="Installing Application" --width=480
       - type: script
         dest-filename: winbox-fonts.sh
         commands:
           - |
-            #!/bin/sh
             PARENT=$(basename "$0")
+            SKIP_SELECT=0
 
             update_progress() {
-              if [ "${PARENT}" = "winbox-installer.sh" ]; then
-                _EXPR=$(awk -v current="${PERCENT}" -v expr="$*" '
+              _PERCENT=${PERCENT:-0}
+              _PROGRESS=$1; shift
+              _STEP=""; [ $# -ge 1 ] && _STEP="$*"
+
+              if [ "${PARENT}" != "winbox-fonts.sh" ]; then
+                _EXPR=$(awk -v current="${_PERCENT}" -v expr="${_PROGRESS}" '
                   BEGIN {
                     split(expr, opr, /[0123456789]*/, opd)
                     switch (opr[1]) {
@@ -162,119 +157,92 @@ modules:
                   }'
                 )
 
+                [ -n "${_STEP}" ] && echo "# ${_STEP}" && sleep 1
                 # shellcheck disable=SC2003,SC2086
-                PERCENT=$(expr ${_EXPR})
-                echo "${PERCENT}" && sleep 1
+                _PERCENT=$(expr ${_EXPR})
+                echo "${_PERCENT}" && sleep 1
               fi
+
+              return "${_PERCENT}"
             }
 
-            EXT_FONTS=$(wine64 reg query 'HKEY_CURRENT_USER\Software\Wine\Fonts\External Fonts' | tr -d '\r')
-            # shellcheck disable=SC2046,SC3011
-            eval $(awk '{
-              split($0, a, /[[:space:]]*REG_SZ[[:space:]]*/)
-              file = gensub(/\\/, "/", "g", substr(a[2], match(a[2], /:/) + 1))
-              switch (a[1]) {
-              case /Carlito Regular \(TrueType\)/:
-                printf("CARLITO=\"%s\"\n", file)
-                break
-              case /DejaVu Sans \(TrueType\)/:
-                printf("DEJAVUE=\"%s\"\n", file)
-                break
-              case /FreeSans \(TrueType\)/:
-                printf("FREESANS=\"%s\"\n", file)
-                break
-              case /Liberation Sans \(TrueType\)/:
-                printf("LIBERATION=\"%s\"\n", file)
-                break
-              case /Segoe UI \(TrueType\)/:
-                printf("SEGOE=\"%s\"\n", file)
-                break 
-              case /Tahoma \(TrueType\)/:
-                printf("TAHOMA=\"%s\"\n", file)
-              }
-            }' <<<"${EXT_FONTS}")
-
-            # Winbox seems to exclusively use Tahoma
-            update_progress "+5"
-            if [ -n "${TAHOMA}" ]; then
-              foundry=$(fc-query --format='%{[]foundry{%{foundry}\n}}' "${TAHOMA}")
-              if [ "${foundry}" = "Wine" ]; then
-                zenity --question \
+            update_progress "+10"; PERCENT=$?
+            _TAHOMA=$(fc-list --format='%{[]file{%{file}\n}}' 'tahoma' | head -1)
+            if [ -n "${_TAHOMA}" ]; then
+              _FOUNDRY=$(fc-query --format='%{[]foundry{%{foundry}\n}}' "${_TAHOMA}")
+              if [ "${_FOUNDRY}" = "Wine" ]; then
+                zenity --info \
                   --default-cancel \
-                  --text="The installed Tahoma font may cause issues with text format.  Choose a replacement ?" \
+                  --text="The installed Tahoma font may cause issues with text formatting.  You must remove the font from the underlying O/S if you wish to choose an alternative." \
                   --width=480
 
-                # shellcheck disable=SC2181
-                if [ $? -eq 0 ]; then
-                  echo "# Removing Tahoma font file"
-                  update_progress "+5"
-                  wine64 CMD /c DEL "${TAHOMA}"
-                  unset TAHOMA
-                fi
+                SKIP_SELECT=1
+              else
+                # WinBox will ALWAYS use Tahoma font if available
+                SKIP_SELECT=1
               fi
             fi
 
-            update_progress "+5"
-            # shellcheck disable=SC3011
-            FONTS=$(awk -v tahoma="${TAHOMA}" '
-              function ltrim(s) { sub(/^[ \t\r\n]+/, "", s); return s }
-              function rtrim(s) { sub(/[ \t\r\n]+$/, "", s); return s }
-              function trim(s)  { return rtrim(ltrim(s)); }
-              {
-                split($0, a, /REG_SZ/)
-                font = trim(a[1])
-                switch (a[1]) {
-                case /Carlito Regular \(TrueType\)/:
-                  printf("FALSE\n%s\nCarlito Regular\n", font)
-                  break
-                case /DejaVu Sans \(TrueType\)/:
-                  printf("FALSE\n%s\nDejaVu Sans\n", font)
-                  break
-                case /FreeSans \(TrueType\)/:
-                  printf("FALSE\n%s\nFreeSans\n", font)
-                  break
-                case /Liberation Sans \(TrueType\)/:
-                  printf("FALSE\n%s\nLiberation Sans\n", font)
-                  break
-                case /Segoe UI \(TrueType\)/:
-                  printf("FALSE\n%s\nSegoe UI\n", font)
-                  break
-                case /Tahoma \(TrueType\)/:
-                  printf("FALSE\n%s\nTahoma\n", font)
-                }
-              }' <<<"${EXT_FONTS}")
+            if [ ${SKIP_SELECT} -eq 0 ]; then
+              update_progress "+10"; PERCENT=$?
+              _FAMILIES=$(WINEDLLOVERRIDES="mscoree,mshtml=d" \
+                wine64 reg query 'HKEY_CURRENT_USER\Software\Wine\Fonts\External Fonts' \
+                | awk '{
+                  sub(/\r$/, "")
+                  if (split($0, a, /[[:space:]]*REG_SZ[[:space:]]*/) == 2)
+                    print gensub(/\\/, "/", "g", substr(a[2], match(a[2], /:/) + 1))
+                }' | while read -r file; do fc-query --format='%{[]family{%{family}\n}}' "${file}"; done \
+                | awk '{
+                  families[$1] = 1
+                  }
+                  END {
+                    lines = 0
+                    printf("TRUE\nAuto\n")
 
-            update_progress "+5"
-            # shellcheck disable=SC3011
-            CHOICE=$(zenity --list \
-              --hide-header \
-              --hide-column=3 \
-              --height=320 \
-              --print-column=3 \
-              --radiolist \
-              --text="Choose font" \
-              --width=480 \
-              --column="Default" \
-              --column="Font" \
-              --column="Var" <<<"${FONTS}")
+                    asorti(families)
+                    for (i in families) {
+                      printf("FALSE\n%s\n", families[i])
+                      if (lines < 255) lines++
+                    }
 
-            # shellcheck disable=SC2181
-            if [ $? -eq 0 ]; then
-              update_progress "+5"
-              case "${CHOICE}" in
-              ""|"Tahoma")
-                wine64 REG DELETE 'HKEY_CURRENT_USER\Software\Wine\Fonts\Replacements' /v 'Tahoma' /f 
-                ;;
-              *)
-                wine64 REG ADD 'HKEY_CURRENT_USER\Software\Wine\Fonts\Replacements' /v 'Tahoma' /d "${CHOICE}" /f 
-                ;;
-              esac
+                    exit(lines)
+                  }')
+
+              _LINES=$?
+              # shellcheck disable=SC2003
+              _HEIGHT=$(expr ${_LINES} \* 30)
+              # shellcheck disable=SC2086
+              [ ${_HEIGHT} -gt 720 ] && _HEIGHT=720
+  
+              update_progress "+10"; PERCENT=$?
+              # shellcheck disable=SC2086,SC3011
+              _CHOICE=$(zenity --list \
+                --hide-header \
+                --height=${_HEIGHT} \
+                --print-column=2 \
+                --radiolist \
+                --text="Choose font" \
+                --width=480 \
+                --column="Default" \
+                --column="Font" <<<"${_FAMILIES}")
+
+              # shellcheck disable=SC2181
+              if [ $? -eq 0 ]; then
+                update_progress "+5"; PERCENT=$?
+                case "${_CHOICE}" in
+                ""|"Auto")
+                  wine64 REG DELETE 'HKEY_CURRENT_USER\Software\Wine\Fonts\Replacements' /v 'Tahoma' /f 
+                  ;;
+                *)
+                  wine64 REG ADD 'HKEY_CURRENT_USER\Software\Wine\Fonts\Replacements' /v 'Tahoma' /d "${_CHOICE}" /f 
+                  ;;
+                esac
+              fi
             fi
       - type: script
         dest-filename: winbox.sh
         commands:
           - |
-            #!/bin/sh
             WINEARCH=win64
             export WINEARCH
 
@@ -290,7 +258,7 @@ modules:
 
                 # shellcheck disable=SC2181
                 if [ $? -eq 0 ]; then
-                  rm -rf "${WINEPREFIX}"
+                  rm -rf "${WINEPREFIX}/drive_c"
                 fi
 
                 exit 1
@@ -298,8 +266,6 @@ modules:
             fi
 
             wine64 "${WINEPREFIX}/drive_c/Program Files/WinBox/winbox64.exe"
-      - type: dir
-        path: fonts
       - type: file
         dest-filename: org.flatpak.WinBox.metainfo.xml
         path: WinBox.metainfo.xml
@@ -308,7 +274,5 @@ modules:
         path: WinBox.desktop
       - type: file
         path: icons/default.png
-    cleanup:
-      - '*.orig'
 
 # vi: set wrap:
