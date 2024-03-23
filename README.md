@@ -1,6 +1,8 @@
 # WinBox flatpak
 **!!! This wrapper is not verified by, affiliated with, sponsored or supported by MikroTīk in any way. !!!**
 
+------
+
 Flatpak build for Mikrotik's WinBox configuration utility.  **No** MikroTik binaries are included in the flatpak. 
 
 After agreement to the [Export Eligibility Requirements and END USER LICENSE](https://mikrotik.com/downloadterms.html) the following will be downloaded and installed ...
@@ -47,8 +49,17 @@ When the Flatpak was built, the release of latest WinBox executable was included
 
 ### Build
 
-To build the flatpak issue the following commands after cloning the repository ...
+The local flatpak is assembled by the flatpak-builder tooling.  On a Fedora based distro the following packages are needed (other distros may vary) ...
 
+`$ sudo dnf install flatpak-builder appstream-compose composefs composefs-libs ostree` 
+
+Clone the GitHub repository ...
+
+`$ git clone https://github.com/hfxdanc/winbox.git`
+
+Issue the following command after cloning the repository to build and install the flatpak (in user space)
+
+`$ cd winbox`
 `$ sh update.sh`
 
 ### Run
