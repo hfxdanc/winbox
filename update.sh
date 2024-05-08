@@ -17,8 +17,11 @@ if [ "${VERSION}" != "${OLDVERSION}" ]; then
 	  <name>WinBox</name>
 	  <summary>MikroTik RouterOS administration GUI</summary>
 	  <developer_name>SIA Mikrotīkls</developer_name>
+	  <update_contact>hfxdanc_AT_gmail.com</update_contact>
 
 	  <description>
+		<p>This is a build of WinBox64 for Microsoft Windows, packaged for Linux as a Flatpak using Wine.</p>
+		<p>NOTE: This wrapper is not verified by, affiliated with, sponsored or supported by MikroTīk in any way.</p>
 		<p>
 		  Winbox is a small utility that allows the administration of MikroTik
 		  RouterOS using a fast and simple GUI. It is a native Win32/Win64 binary
@@ -28,8 +31,6 @@ if [ "${VERSION}" != "${OLDVERSION}" ]; then
 		  Some advanced and system critical configurations are not possible from
 		  the Winbox, like MAC address change on an interface.
 		</p>
-		<p>This is a build of WinBox64 for Microsoft Windows, packaged for Linux as a Flatpak using Wine.</p>
-		<p>NOTE: This wrapper is not verified by, affiliated with, sponsored or supported by MikroTīk in any way.</p>
 	  </description>
 
 	  <launchable type="desktop-id">org.flatpak.WinBox.desktop</launchable>

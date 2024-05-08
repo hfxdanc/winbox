@@ -41,7 +41,7 @@ When the Flatpak was built, the release of latest WinBox executable was included
 
 ##### Network
 
-- If you are not seeing any addresses in the "Nieghbors" tab there may be a local firewall interfering with discovery.  On distributions using firewalld ...
+- If you are not seeing any addresses in the "Neighbors" tab there may be a local firewall interfering with discovery.  On distributions using firewalld ...
 
   gtk-update-icon-cache -f -t /usr/share/icons/hicolor
   $ firewall-cmd --permanent --add-port=5678/udp
