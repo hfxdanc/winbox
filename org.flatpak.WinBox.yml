@@ -2,15 +2,20 @@ app-id: org.flatpak.WinBox
 base: org.winehq.Wine
 base-version: stable-23.08
 runtime: org.freedesktop.Platform
-runtime-version: '23.08'
+runtime-version: &runtime-version '23.08'
 sdk: org.freedesktop.Sdk
 command: winbox.sh
 
 finish-args:
   - --env=PATH=/app/bin:/usr/bin
   - --env=WINEPREFIX=/var/data
-  # Allow access to add desktop icon file
-  - --filesystem=~/.local/share/icons/hicolor/
+  # Allow access to add desktop icon files
+  - --filesystem=~/.local/share/icons/hicolor/64x64/apps:create
+  - --filesystem=~/.local/share/icons/hicolor/128x128/apps:create
+  - --filesystem=~/.local/share/icons/hicolor/256x256/apps:create
+  - --filesystem=~/.local/share/icons/hicolor/64x64/apps/org.flatpak.WinBox.png:rw
+  - --filesystem=~/.local/share/icons/hicolor/128x128/apps/org.flatpak.WinBox.png:rw
+  - --filesystem=~/.local/share/icons/hicolor/256x256/apps/org.flatpak.WinBox.png:rw
   # Allow access to XDG download dir
   - --filesystem=xdg-download
   - --filesystem=xdg-run/gvfsd
@@ -37,12 +42,14 @@ modules:
         rm ${FLATPAK_DEST}/share/wine/fonts/tahoma.ttf \
           ${FLATPAK_DEST}/share/wine/fonts/tahomabd.ttf
       - |
-        for size in 64 128 256 512
+        for size in 64 128 256
         do
           install -d ${FLATPAK_DEST}/share/icons/hicolor/${size}x${size}/apps
           gdk-pixbuf-thumbnailer -s ${size} default.png \
             ${FLATPAK_DEST}/share/icons/hicolor/${size}x${size}/apps/${FLATPAK_ID}.png
         done
+    post-install:
+      - cp /usr/bin/gdk-pixbuf-thumbnailer ${FLATPAK_DEST}/bin/gdk-pixbuf-thumbnailer
     sources:
       - type: script
         dest-filename: winbox-installer.sh
@@ -78,39 +85,66 @@ modules:
             curl --location \
               --output "${WINEPREFIX}/drive_c/Program Files/WinBox/winbox64.exe" \
               https://mt.lv/winbox64
-            PERCENT=30
+            # shellcheck disable=SC2181
+            if [ $? -ne 0 ]; then
+              exit 1
+            fi
+            PERCENT=40
 
             echo "# Downloading Export Eligibility Requirements and END USER LICENSE"
             echo "${PERCENT}"; sleep 1
             curl --location \
               --output "${WINEPREFIX}/drive_c/Program Files/WinBox/LICENSE" \
               https://mikrotik.com/downloadterms.html
-            PERCENT=40
-
-            echo "# Downloading Icons"
-            echo "${PERCENT}"; sleep 1
-            curl --location \
-              --output /tmp/MT_Symbol_Black.svg \
-              https://mikrotik.com/logo/library/logo/SVG/MT_Symbol_Black.svg
-
-            for size in 64 128 256 512
-            do
-              install -d ~/.local/share/icons/hicolor/${size}x${size}/apps
-              rsvg-convert --width ${size} \
-                --height ${size} \
-                --keep-aspect-ratio \
-                --format png \
-                --output ~/.local/share/icons/hicolor/${size}x${size}/apps/"${FLATPAK_ID}".png \
-                /tmp/MT_Symbol_Black.svg
-            done
             PERCENT=50
+
+            echo "# Extracting Icons"
+            echo "${PERCENT}"; sleep 1
+            (cd /tmp && 7z e "${WINEPREFIX}/drive_c/Program Files/WinBox/winbox64.exe" .rsrc/ICON/*)
+
+            FILE=$(file /tmp/* | awk '
+              BEGIN {
+                file = ""
+                icon = ""
+                last = 0
+              }
+
+              /MS Windows icon resource/ {
+                split($0, a, /:/)
+                icon = a[1]
+
+                split(substr($0, index($0, ", ") + 2), a, /x/)
+                i = strtonum(a[1]) * strtonum(a[2])
+                if (i > last) {
+                  file = icon
+                  last = i
+                }
+              }
+
+              END {
+                if (length(file) > 0) print file
+              }'
+            )
+            
+            # Override internal generic icons
+            if [ -n "${FILE}" ]; then
+              for size in 64 128 256
+              do
+                install -d ~/.local/share/icons/hicolor/${size}x${size}/apps
+                gdk-pixbuf-thumbnailer --size ${size} "${FILE}" \
+                  ~/.local/share/icons/hicolor/${size}x${size}/apps/"${FLATPAK_ID}".png
+              done
+            fi
+            PERCENT=60
 
             echo "# Checking Font(s)"
             echo "${PERCENT}"; sleep 1
             # shellcheck disable=SC3046,SC1091
             source /app/bin/winbox-fonts.sh
+            [ ${PERCENT} -lt 90 ] && PERCENT=90
 
-            update_progress "+5" "Set Windows Version to win10"; PERCENT=$?
+            echo "# Set Windows Version to win10"
+            echo "${PERCENT}"; sleep 1
             WINEDLLOVERRIDES='mscoree,mshtml=d' wine64 REG ADD 'HKCU\Software\Wine' /v 'Version' /d 'win10' /f
 
             echo "# Installer finished" ) | zenity --progress --title="Installing Application" --width=480
@@ -161,7 +195,7 @@ modules:
               return "${_PERCENT}"
             }
 
-            update_progress "+10"; PERCENT=$?
+            update_progress "+5"; PERCENT=$?
             _TAHOMA=$(fc-list --format='%{[]file{%{file}\n}}' 'tahoma' | head -1)
             if [ -n "${_TAHOMA}" ]; then
               _FOUNDRY=$(fc-query --format='%{[]foundry{%{foundry}\n}}' "${_TAHOMA}")

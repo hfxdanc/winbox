@@ -8,17 +8,18 @@ Flatpak build for Mikrotik's WinBox configuration utility.  **No** MikroTik bina
 After agreement to the [Export Eligibility Requirements and END USER LICENSE](https://mikrotik.com/downloadterms.html) the following will be downloaded and installed ...
 
 - Latest Windows X86_64 version of WinBox and licence terms
-- MikroTik logo for the Desktop icon (will replace the default project icon) 
 
 #### Possible issues
 
 ##### AppStream data
 
-When the Flatpak was built, the release of latest WinBox executable was included in the "Version" section of the AppStream Desktop files; however, the install may download a newer version.
+- When the Flatpak was built, the release of latest WinBox executable was included in the "Version" section of the AppStream Desktop files; however, the install may download a newer version.
+
+- AppStream **requires** an icon to be present.  A default free icon (included in source code) is installed upon build into the flatpak and becomes R/O.  Some tooling will always display the icon contained in the flatpak instead of using the search path.
 
 ##### Fonts
 
-- Wine seems to now *always* obey the font settings from the underlying O/S regarding antialiasing.  If you are using GNOME desktop and the fonts in WinBox appear thin and are not providing proper kerning (text is improperly spaced) check the current settings ...
+- Wine seems to now *always* obey the font settings from the underlying O/S regarding anti-aliasing.  If you are using GNOME desktop and the fonts in WinBox appear thin and are not providing proper kerning (text is improperly spaced) check the current settings ...
 
   `$ dconf read /org/gnome/desktop/interface/font-antialiasing`
   `'grayscale'`
@@ -31,21 +32,28 @@ When the Flatpak was built, the release of latest WinBox executable was included
   `'rgba'`
   `$`
 
-- WinBox is coded to prefer the "default" Windows 7 Tahoma font it appears.  Wine (winehq runtime) provides a free alternative to the proprietary Microsoft typeface, but it seems to not provide proper kerning (text is improperly spaced).  Font replacement handling in Wine will always use the original font   if it is available (cannot be substituted), therefore the build removes the Wine provided Tahoma font so that a user can replace it with an alternative.
+- It appears that WinBox is coded to prefer the "default" Windows 7 Tahoma font.  Wine (winehq runtime) provides a free alternative to the proprietary Microsoft typeface, but it seems to not provide proper kerning (text is improperly spaced).  Font replacement handling in Wine will always use the original font  if it is available (cannot be substituted), therefore the build removes the Wine provided Tahoma font so that a user can replace it with an alternative.
 
-  The Fedora package `wine-tahoma-fonts` provides the WineHQ font, so if it is installed the font issue will appear.  Other Linux distributions may differ.
+  The Fedora package `wine-tahoma-fonts` provides the WineHQ font.  If it is installed the font issue will appear.  Other Linux distributions may differ.
   
-  With **no** Tahoma font installed WinBox/Wine selects an alternative from the WineHQ defaults.  Testing shows *Liberation Sans* being requested which renders acceptably.
+  During the initial flatpak run if an acceptable Tahoma font is found the install will skip to the final steps.
   
-  During the initial flatpak run a graphical window will display a list of  available fonts and allow one to be selected. The selection will be used to update the registry key `HKEY_CURRENT_USER\Software\Wine\Fonts\Replacements` or clear it if  `Auto` is selected.
+  With **no** Tahoma font installed a graphical window will display a list of available fonts and allow one to be selected. The selection will be used to update the registry key `HKEY_CURRENT_USER\Software\Wine\Fonts\Replacements` or clear it if  `Auto` is selected.
+  
+  Use of the `Auto` preset (recommended) has been tested to show WinBox/Wine will select the *Liberation Sans* font which renders acceptably.
 
 ##### Network
 
-- If you are not seeing any addresses in the "Neighbors" tab there may be a local firewall interfering with discovery.  On distributions using firewalld ...
+- If you are not seeing any addresses in the "Neighbours" tab there may be a local firewall interfering with discovery.  On distributions using firewalld ...
 
-  gtk-update-icon-cache -f -t /usr/share/icons/hicolor
-  $ firewall-cmd --permanent --add-port=5678/udp
-  $ firewall-cmd --reload
+  `$ sudo firewall-cmd --permanent --add-port=5678/udp`
+  `$ sudo firewall-cmd --reload`
+
+##### Icons
+
+- If the "Terms and Conditions" are accepted the MikroTik icons contained in the WinBox application will be extracted and installed into the user's `~/.local/share/icons` directory.  Gnome caches Appstream icons, but they will be refreshed on subsequent runs.  If you wish to force the update ...
+
+  `$ gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor`
 
 ### Build
 
@@ -82,6 +90,6 @@ You can remove the application through your normal GUI process or with the comma
 $ flatpak uninstall --delete-data org.flatpak.WinBox
 ```
 
-The MikroTik icon downloaded during installation was installed outside of `$FLATPAK_USER_DIR` tree so that the AppStream desktop process could use it.  You can remove the icon with the command ...
+The WinBox icon extracted during installation was installed outside of `$FLATPAK_USER_DIR` tree and therefore will not be removed by the uninstall process.  You can remove the icon with the command ...
 
 `$ find $HOME/.local/share/icons/hicolor/ -name org.flatpak.WinBox.png -exec rm {} \;`
